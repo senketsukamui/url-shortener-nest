@@ -2,9 +2,11 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('UrlController (e2e)', () => {
   let app: INestApplication;
+  let prisma: PrismaService;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -20,6 +22,9 @@ describe('UrlController (e2e)', () => {
       }),
     );
     await app.init();
+
+    prisma = app.get(PrismaService);
+    await prisma.url.deleteMany();
   });
 
   afterEach(async () => {
@@ -33,10 +38,13 @@ describe('UrlController (e2e)', () => {
       .expect(201);
 
     expect(response.body).toEqual({
-      short_url: expect.any(String),
-      long_url: 'https://example.com/articles/1',
+      id: expect.any(String),
+      shortUrl: expect.any(String),
+      longUrl: 'https://example.com/articles/1',
+      createdAt: expect.any(String),
+      updatedAt: expect.any(String),
     });
-    expect(response.body.short_url).toHaveLength(6);
+    expect(response.body.shortUrl).toHaveLength(6);
   });
 
   it('POST /url/shorten should reject invalid URLs', async () => {
@@ -71,7 +79,7 @@ describe('UrlController (e2e)', () => {
       .expect(201);
 
     await request(app.getHttpServer())
-      .get(`/url/${createdUrl.body.short_url}`)
+      .get(`/url/${createdUrl.body.shortUrl}`)
       .expect(302)
       .expect('Location', 'https://example.com/docs');
   });
