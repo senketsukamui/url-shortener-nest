@@ -1,60 +1,66 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUrlDto } from './dto/create-url.dto';
 import { generateShortCode } from './helpers/generate-short-code';
-
-type UrlItem = {
-  short_url: string;
-  long_url: string;
-};
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class UrlService {
-  private urls: UrlItem[] = [];
+  constructor(private prisma: PrismaService) {}
 
-  create(createUrlDto: CreateUrlDto) {
-    const duplicate = this.checkUrlDuplicate(createUrlDto.url);
+  async create(createUrlDto: CreateUrlDto) {
+    const duplicate = await this.checkUrlDuplicate(createUrlDto.url);
     if (duplicate) {
       return duplicate;
     }
 
     let shortUrl = generateShortCode();
 
-    while (this.doesShortCodeExist(shortUrl)) {
+    while (await this.doesShortCodeExist(shortUrl)) {
       shortUrl = generateShortCode();
     }
 
-    const item = {
-      short_url: shortUrl,
-      long_url: createUrlDto.url,
-    };
-    this.urls.push(item);
-    return item;
+    return this.prisma.url.create({
+      data: {
+        shortUrl,
+        longUrl: createUrlDto.url,
+      },
+    });
   }
 
   findAll() {
-    return this.urls;
+    return this.prisma.url.findMany();
   }
 
-  redirect(id: string) {
-    const url = this.getLongUrl(id);
+  async redirect(id: string) {
+    const url = await this.getLongUrl(id);
     return { url, statusCode: 302 };
   }
 
-  getLongUrl(shortUrl: string): string {
-    const url = this.urls.find((item) => item.short_url === shortUrl);
+  async getLongUrl(shortUrl: string): Promise<string> {
+    const url = await this.prisma.url.findUnique({
+      where: { shortUrl },
+      select: { longUrl: true },
+    });
 
     if (!url) {
       throw new NotFoundException('Short URL not found');
     }
 
-    return url.long_url;
+    return url.longUrl;
   }
 
-  checkUrlDuplicate(longUrl: string): UrlItem | undefined {
-    return this.urls.find((item) => item.long_url === longUrl);
+  async checkUrlDuplicate(longUrl: string) {
+    return this.prisma.url.findFirst({
+      where: { longUrl },
+    });
   }
 
-  doesShortCodeExist(code: string): boolean {
-    return this.urls.some((item) => item.short_url === code);
+  async doesShortCodeExist(code: string): Promise<boolean> {
+    const existingUrl = await this.prisma.url.findUnique({
+      where: { shortUrl: code },
+      select: { id: true },
+    });
+
+    return Boolean(existingUrl);
   }
 }

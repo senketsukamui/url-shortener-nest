@@ -3,73 +3,166 @@ import { UrlService } from './url.service';
 
 describe('UrlService', () => {
   let service: UrlService;
+  let prisma: {
+    url: {
+      create: jest.Mock;
+      findFirst: jest.Mock;
+      findMany: jest.Mock;
+      findUnique: jest.Mock;
+    };
+  };
 
   beforeEach(() => {
-    service = new UrlService();
+    prisma = {
+      url: {
+        create: jest.fn(),
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+      },
+    };
+
+    service = new UrlService(prisma as any);
   });
 
   describe('create', () => {
-    it('should create a shortened URL item', () => {
-      const result = service.create({ url: 'https://example.com/articles/1' });
+    it('should create a shortened URL item in the database', async () => {
+      const createdUrl = {
+        id: 'url-id',
+        shortUrl: 'abc123',
+        longUrl: 'https://example.com/articles/1',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-      expect(result).toEqual({
-        short_url: expect.any(String),
-        long_url: 'https://example.com/articles/1',
+      prisma.url.findFirst.mockResolvedValue(null);
+      prisma.url.findUnique.mockResolvedValue(null);
+      prisma.url.create.mockResolvedValue(createdUrl);
+
+      const result = await service.create({ url: 'https://example.com/articles/1' });
+
+      expect(prisma.url.findFirst).toHaveBeenCalledWith({
+        where: { longUrl: 'https://example.com/articles/1' },
       });
-      expect(result.short_url).toHaveLength(6);
+      expect(prisma.url.findUnique).toHaveBeenCalledWith({
+        where: { shortUrl: expect.any(String) },
+        select: { id: true },
+      });
+      expect(prisma.url.create).toHaveBeenCalledWith({
+        data: {
+          shortUrl: expect.any(String),
+          longUrl: 'https://example.com/articles/1',
+        },
+      });
+      expect(result).toBe(createdUrl);
     });
 
-    it('should return the existing item when the long URL already exists', () => {
-      const firstResult = service.create({ url: 'https://example.com' });
-      const secondResult = service.create({ url: 'https://example.com' });
+    it('should return the existing item when the long URL already exists', async () => {
+      const existingUrl = {
+        id: 'url-id',
+        shortUrl: 'abc123',
+        longUrl: 'https://example.com',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-      expect(secondResult).toBe(firstResult);
-      expect(service.findAll()).toHaveLength(1);
+      prisma.url.findFirst.mockResolvedValue(existingUrl);
+
+      const result = await service.create({ url: 'https://example.com' });
+
+      expect(result).toBe(existingUrl);
+      expect(prisma.url.create).not.toHaveBeenCalled();
     });
   });
 
   describe('findAll', () => {
-    it('should return all saved URL items', () => {
-      const firstUrl = service.create({ url: 'https://example.com/one' });
-      const secondUrl = service.create({ url: 'https://example.com/two' });
+    it('should return all saved URL items from the database', async () => {
+      const urls = [
+        {
+          id: 'first-url-id',
+          shortUrl: 'abc123',
+          longUrl: 'https://example.com/one',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: 'second-url-id',
+          shortUrl: 'def456',
+          longUrl: 'https://example.com/two',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
 
-      expect(service.findAll()).toEqual([firstUrl, secondUrl]);
+      prisma.url.findMany.mockResolvedValue(urls);
+
+      await expect(service.findAll()).resolves.toBe(urls);
+      expect(prisma.url.findMany).toHaveBeenCalledWith();
     });
   });
 
   describe('getLongUrl', () => {
-    it('should return the long URL for an existing short code', () => {
-      const item = service.create({ url: 'https://example.com' });
+    it('should return the long URL for an existing short code', async () => {
+      prisma.url.findUnique.mockResolvedValue({ longUrl: 'https://example.com' });
 
-      expect(service.getLongUrl(item.short_url)).toBe('https://example.com');
+      await expect(service.getLongUrl('abc123')).resolves.toBe('https://example.com');
+      expect(prisma.url.findUnique).toHaveBeenCalledWith({
+        where: { shortUrl: 'abc123' },
+        select: { longUrl: true },
+      });
     });
 
-    it('should throw NotFoundException when the short code does not exist', () => {
-      expect(() => service.getLongUrl('missing')).toThrow(NotFoundException);
+    it('should throw NotFoundException when the short code does not exist', async () => {
+      prisma.url.findUnique.mockResolvedValue(null);
+
+      await expect(service.getLongUrl('missing')).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('checkUrlDuplicate', () => {
-    it('should return the existing URL item when a duplicate long URL exists', () => {
-      const item = service.create({ url: 'https://example.com' });
+    it('should return the existing URL item when a duplicate long URL exists', async () => {
+      const existingUrl = {
+        id: 'url-id',
+        shortUrl: 'abc123',
+        longUrl: 'https://example.com',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-      expect(service.checkUrlDuplicate('https://example.com')).toBe(item);
+      prisma.url.findFirst.mockResolvedValue(existingUrl);
+
+      await expect(service.checkUrlDuplicate('https://example.com')).resolves.toBe(
+        existingUrl,
+      );
+      expect(prisma.url.findFirst).toHaveBeenCalledWith({
+        where: { longUrl: 'https://example.com' },
+      });
     });
 
-    it('should return undefined when no duplicate long URL exists', () => {
-      expect(service.checkUrlDuplicate('https://example.com')).toBeUndefined();
+    it('should return null when no duplicate long URL exists', async () => {
+      prisma.url.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.checkUrlDuplicate('https://example.com'),
+      ).resolves.toBeNull();
     });
   });
 
   describe('doesShortCodeExist', () => {
-    it('should return true when the short code exists', () => {
-      const item = service.create({ url: 'https://example.com' });
+    it('should return true when the short code exists', async () => {
+      prisma.url.findUnique.mockResolvedValue({ id: 'url-id' });
 
-      expect(service.doesShortCodeExist(item.short_url)).toBe(true);
+      await expect(service.doesShortCodeExist('abc123')).resolves.toBe(true);
+      expect(prisma.url.findUnique).toHaveBeenCalledWith({
+        where: { shortUrl: 'abc123' },
+        select: { id: true },
+      });
     });
 
-    it('should return false when the short code does not exist', () => {
-      expect(service.doesShortCodeExist('missing')).toBe(false);
+    it('should return false when the short code does not exist', async () => {
+      prisma.url.findUnique.mockResolvedValue(null);
+
+      await expect(service.doesShortCodeExist('missing')).resolves.toBe(false);
     });
   });
 });
