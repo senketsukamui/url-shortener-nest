@@ -37,16 +37,21 @@ export class UrlService {
   }
 
   async getLongUrl(shortUrl: string): Promise<string> {
-    const url = await this.prisma.url.findUnique({
-      where: { shortUrl },
-      select: { longUrl: true },
-    });
+    try {
+      const url = await this.prisma.url.update({
+        where: { shortUrl },
+        data: {
+          clicks: {
+            increment: 1,
+          },
+        },
+        select: { longUrl: true },
+      });
 
-    if (!url) {
+      return url.longUrl;
+    } catch {
       throw new NotFoundException('Short URL not found');
     }
-
-    return url.longUrl;
   }
 
   async checkUrlDuplicate(longUrl: string) {

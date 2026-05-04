@@ -9,6 +9,7 @@ describe('UrlService', () => {
       findFirst: jest.Mock;
       findMany: jest.Mock;
       findUnique: jest.Mock;
+      update: jest.Mock;
     };
   };
 
@@ -19,6 +20,7 @@ describe('UrlService', () => {
         findFirst: jest.fn(),
         findMany: jest.fn(),
         findUnique: jest.fn(),
+        update: jest.fn(),
       },
     };
 
@@ -31,6 +33,7 @@ describe('UrlService', () => {
         id: 'url-id',
         shortUrl: 'abc123',
         longUrl: 'https://example.com/articles/1',
+        clicks: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -62,6 +65,7 @@ describe('UrlService', () => {
         id: 'url-id',
         shortUrl: 'abc123',
         longUrl: 'https://example.com',
+        clicks: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -82,6 +86,7 @@ describe('UrlService', () => {
           id: 'first-url-id',
           shortUrl: 'abc123',
           longUrl: 'https://example.com/one',
+          clicks: 0,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
@@ -89,6 +94,7 @@ describe('UrlService', () => {
           id: 'second-url-id',
           shortUrl: 'def456',
           longUrl: 'https://example.com/two',
+          clicks: 0,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
@@ -102,18 +108,23 @@ describe('UrlService', () => {
   });
 
   describe('getLongUrl', () => {
-    it('should return the long URL for an existing short code', async () => {
-      prisma.url.findUnique.mockResolvedValue({ longUrl: 'https://example.com' });
+    it('should increment clicks and return the long URL for an existing short code', async () => {
+      prisma.url.update.mockResolvedValue({ longUrl: 'https://example.com' });
 
       await expect(service.getLongUrl('abc123')).resolves.toBe('https://example.com');
-      expect(prisma.url.findUnique).toHaveBeenCalledWith({
+      expect(prisma.url.update).toHaveBeenCalledWith({
         where: { shortUrl: 'abc123' },
+        data: {
+          clicks: {
+            increment: 1,
+          },
+        },
         select: { longUrl: true },
       });
     });
 
     it('should throw NotFoundException when the short code does not exist', async () => {
-      prisma.url.findUnique.mockResolvedValue(null);
+      prisma.url.update.mockRejectedValue(new Error('Record not found'));
 
       await expect(service.getLongUrl('missing')).rejects.toThrow(NotFoundException);
     });
@@ -125,6 +136,7 @@ describe('UrlService', () => {
         id: 'url-id',
         shortUrl: 'abc123',
         longUrl: 'https://example.com',
+        clicks: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       };

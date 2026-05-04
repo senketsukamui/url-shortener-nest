@@ -41,6 +41,8 @@ describe('UrlController (e2e)', () => {
       id: expect.any(String),
       shortUrl: expect.any(String),
       longUrl: 'https://example.com/articles/1',
+      clicks: 0,
+      userId: null,
       createdAt: expect.any(String),
       updatedAt: expect.any(String),
     });
