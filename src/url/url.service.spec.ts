@@ -42,10 +42,13 @@ describe('UrlService', () => {
       prisma.url.findUnique.mockResolvedValue(null);
       prisma.url.create.mockResolvedValue(createdUrl);
 
-      const result = await service.create({ url: 'https://example.com/articles/1' });
+      const result = await service.create(
+        { url: 'https://example.com/articles/1' },
+        'user-id',
+      );
 
       expect(prisma.url.findFirst).toHaveBeenCalledWith({
-        where: { longUrl: 'https://example.com/articles/1' },
+        where: { longUrl: 'https://example.com/articles/1', userId: 'user-id' },
       });
       expect(prisma.url.findUnique).toHaveBeenCalledWith({
         where: { shortUrl: expect.any(String) },
@@ -55,6 +58,7 @@ describe('UrlService', () => {
         data: {
           shortUrl: expect.any(String),
           longUrl: 'https://example.com/articles/1',
+          userId: 'user-id',
         },
       });
       expect(result).toBe(createdUrl);
@@ -72,7 +76,7 @@ describe('UrlService', () => {
 
       prisma.url.findFirst.mockResolvedValue(existingUrl);
 
-      const result = await service.create({ url: 'https://example.com' });
+      const result = await service.create({ url: 'https://example.com' }, 'user-id');
 
       expect(result).toBe(existingUrl);
       expect(prisma.url.create).not.toHaveBeenCalled();
@@ -143,11 +147,11 @@ describe('UrlService', () => {
 
       prisma.url.findFirst.mockResolvedValue(existingUrl);
 
-      await expect(service.checkUrlDuplicate('https://example.com')).resolves.toBe(
-        existingUrl,
-      );
+      await expect(
+        service.checkUrlDuplicate('https://example.com', 'user-id'),
+      ).resolves.toBe(existingUrl);
       expect(prisma.url.findFirst).toHaveBeenCalledWith({
-        where: { longUrl: 'https://example.com' },
+        where: { longUrl: 'https://example.com', userId: 'user-id' },
       });
     });
 
@@ -155,7 +159,7 @@ describe('UrlService', () => {
       prisma.url.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.checkUrlDuplicate('https://example.com'),
+        service.checkUrlDuplicate('https://example.com', 'user-id'),
       ).resolves.toBeNull();
     });
   });

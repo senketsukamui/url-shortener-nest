@@ -7,8 +7,8 @@ import { PrismaService } from '../prisma/prisma.service';
 export class UrlService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createUrlDto: CreateUrlDto) {
-    const duplicate = await this.checkUrlDuplicate(createUrlDto.url);
+  async create(createUrlDto: CreateUrlDto, userId: string) {
+    const duplicate = await this.checkUrlDuplicate(createUrlDto.url, userId);
     if (duplicate) {
       return duplicate;
     }
@@ -23,6 +23,7 @@ export class UrlService {
       data: {
         shortUrl,
         longUrl: createUrlDto.url,
+        userId,
       },
     });
   }
@@ -54,9 +55,9 @@ export class UrlService {
     }
   }
 
-  async checkUrlDuplicate(longUrl: string) {
+  async checkUrlDuplicate(longUrl: string, userId: string) {
     return this.prisma.url.findFirst({
-      where: { longUrl },
+      where: { longUrl, userId },
     });
   }
 
